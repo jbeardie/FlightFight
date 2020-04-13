@@ -10,6 +10,9 @@ SCREENWIDTH = 640
 SCREENHEIGHT = 480
 MAXBULLETS = 100
 
+# Screen capture
+sc = False
+
 # Physics constants
 # 8 pixels = 1m
 FPS = 100
@@ -20,9 +23,13 @@ win = pygame.display.set_mode((SCREENWIDTH, SCREENHEIGHT))
 pygame.display.set_caption("First flight")
 
 bg = pygame.image.load('images/bg.png')
+rocket1Image = pygame.image.load('images/rocket.png')
+rocket2Image = pygame.image.load('images/rocket2.png')
+
 
 pygame.mixer.set_num_channels(8)
-thrust_voice = pygame.mixer.Channel(5)
+thrust_voice1 = pygame.mixer.Channel(5)
+thrust_voice2 = pygame.mixer.Channel(6)
 thrust_sound = pygame.mixer.Sound('sfx/chopidle.wav')
 bump_sound = pygame.mixer.Sound('sfx/bump.wav')
 
@@ -32,15 +39,15 @@ clock = pygame.time.Clock()
 
 class Vessel(object):
 
-    def __init__(self, x, y, width, height):
+    def __init__(self, x, y, width, height, image):
         self.x = x
         self.y = y
         self.width = width
         self. height = height
         self.xvel = 0
         self.yvel = 0
-        self.thrust = GRAVITY * 2# + (12*8)/FPS**2
-        self.originalImage = pygame.image.load('images/rocket.png')
+        self.thrust = GRAVITY * 3# + (12*8)/FPS**2
+        self.originalImage = image
         self.image = self.originalImage
         self.rect = self.image.get_rect()
         self.rect.center = (x, y)
@@ -104,11 +111,18 @@ class RocketBurn(object):
 class Events(object):
     def __init__(self):
         self.run = True
+
         self.p1_up = False
         self.p1_left = False
         self.p1_right = False
         self.p1_down = False
         self.p1_space = False
+
+        self.p2_up = False
+        self.p2_left = False
+        self.p2_right = False
+        self.p2_down = False
+        self.p2_space = False
 
     def handle(self):
         for event in pygame.event.get():
@@ -126,6 +140,18 @@ class Events(object):
                     self.p1_right = True
                 if event.key == pygame.K_DOWN:
                     self.p1_down = True
+
+                if event.key == pygame.K_q:
+                    self.p2_space = True
+                if event.key == pygame.K_a:
+                    self.p2_left = True
+                if event.key == pygame.K_w:
+                    self.p2_up = True
+                if event.key == pygame.K_d:
+                    self.p2_right = True
+                if event.key == pygame.K_s:
+                    self.p2_down = True
+
                 if event.key == pygame.K_ESCAPE:
                     self.run = False
 
@@ -141,25 +167,42 @@ class Events(object):
                 if event.key == pygame.K_DOWN:
                     self.p1_down = False
 
+                if event.key == pygame.K_q:
+                    self.p2_space = False
+                if event.key == pygame.K_a:
+                    self.p2_left = False
+                if event.key == pygame.K_w:
+                    self.p2_up = False
+                if event.key == pygame.K_d:
+                    self.p2_right = False
+                if event.key == pygame.K_s:
+                    self.p2_down = False
+
 def redrawGameWindow():
+    global sc
     # pygame.draw.rect(win, (0, 0, 0), (0, 0, SCREENWIDTH, SCREENHEIGHT))
     # pygame.draw.rect(win, (128, 128, 128), (0, 0, SCREENWIDTH, SCREENHEIGHT), 3)
     win.blit(bg, (0, 0))
     for flame in flames:
         flame.draw(win)
-    player.draw(win)
-    text = font.render("xvel: " + '{:>10}'.format(str(round(player.xvel, 3))) +
-        " yvel: " + '{:>10}'.format(str(round(player.yvel, 3))) +
+    player1.draw(win)
+    player2.draw(win)
+    text = font.render("xvel: " + '{:>10}'.format(str(round(player1.xvel, 3))) +
+        " yvel: " + '{:>10}'.format(str(round(player1.yvel, 3))) +
         " FPS: " + str(int(clock.get_fps())), 1, (0, 255, 0))
     win.blit(text, (10, 10))
-
+    if sc:
+        pygame.image.save(win, sc.jpg)
+        sc = False
     pygame.display.update()
 
 # Objects
 events = Events()
 flames = []
-player = Vessel(100, 100, 31, 31)
+player1 = Vessel(540, 100, 31, 31, rocket1Image)
+player2 = Vessel(100, 100, 31, 31, rocket2Image)
 screen_refresh = 0
+
 
 # Mainloop
 while events.run:
@@ -168,24 +211,46 @@ while events.run:
     events.handle()
 
     if events.p1_up:
-        player.accelerate()
-        xvector = math.sin(math.radians(player.angle))
-        yvector = math.cos(math.radians(player.angle))
-        tailx = player.rect.center[0] + player.height * 0.5 * xvector
-        taily = player.rect.center[1] + player.height * 0.5 * yvector
+        player1.accelerate()
+        xvector = math.sin(math.radians(player1.angle))
+        yvector = math.cos(math.radians(player1.angle))
+        tailx = player1.rect.center[0] + player1.height * 0.5 * xvector
+        taily = player1.rect.center[1] + player1.height * 0.5 * yvector
         # pygame.draw.circle(frame, (0, 255, 0), (tailx, taily), 5, 1)
-        flames.append(RocketBurn(tailx, taily, player.xvel + 2 * xvector + (random.random() - 0.5), player.yvel + 2 * yvector + (random.random() - 0.5)))
-        if not thrust_voice.get_busy():
-            thrust_voice.play(thrust_sound, -1)
+        flames.append(RocketBurn(tailx, taily, player1.xvel + 2 * xvector + (random.random() - 0.5), player1.yvel + 2 * yvector + (random.random() - 0.5)))
+        if not thrust_voice1.get_busy():
+            thrust_voice1.play(thrust_sound, -1)
     else:
-        if thrust_voice.get_busy():
-            thrust_voice.stop()
+        if thrust_voice1.get_busy():
+            thrust_voice1.stop()
 
     if events.p1_left:
-        player.angle += 2 % 360
+        player1.angle += 2 % 360
     if events.p1_right:
-        player.angle -= 2 % 360
-    # if events.p1_space:
+        player1.angle -= 2 % 360
+    if events.p1_space and not sc:
+        sc = True
+
+    if events.p2_up:
+        player2.accelerate()
+        xvector = math.sin(math.radians(player2.angle))
+        yvector = math.cos(math.radians(player2.angle))
+        tailx = player2.rect.center[0] + player2.height * 0.5 * xvector
+        taily = player2.rect.center[1] + player2.height * 0.5 * yvector
+        # pygame.draw.circle(frame, (0, 255, 0), (tailx, taily), 5, 1)
+        flames.append(RocketBurn(tailx, taily, player2.xvel + 2 * xvector + (random.random() - 0.5), player2.yvel + 2 * yvector + (random.random() - 0.5)))
+        if not thrust_voice2.get_busy():
+            thrust_voice2.play(thrust_sound, -1)
+    else:
+        if thrust_voice2.get_busy():
+            thrust_voice2.stop()
+
+    if events.p2_left:
+        player2.angle += 2 % 360
+    if events.p2_right:
+        player2.angle -= 2 % 360
+    if events.p2_space and not sc:
+        sc = True
 
     for flame in flames:
         if flame.age < flame.lifeTime:
@@ -194,30 +259,54 @@ while events.run:
         else:
             flames.pop(flames.index(flame))
 
-    player.yvel += GRAVITY
+    player1.yvel += GRAVITY
+    player2.yvel += GRAVITY
 
-    # collisions
-    if player.y + player.hitradius + player.yvel < SCREENHEIGHT and player.y - player.hitradius + player.yvel > 0:
-        player.move()
+    # collisions for p1
+    if player1.y + player1.hitradius + player1.yvel < SCREENHEIGHT and player1.y - player1.hitradius + player1.yvel > 0:
+        player1.move()
 
     else:
-        if player.y > SCREENHEIGHT - player.hitradius:
-            player.y = SCREENHEIGHT - player.hitradius
-        elif player.y < player.hitradius:
-            player.y = player.hitradius
+        if player1.y > SCREENHEIGHT - player1.hitradius:
+            player1.y = SCREENHEIGHT - player1.hitradius
+        elif player1.y < player1.hitradius:
+            player1.y = player1.hitradius
 
-        if abs(player.yvel) > 40/FPS:
-            player.yvel = -player.yvel * 0.5
+        if abs(player1.yvel) > 40/FPS:
+            player1.yvel = -player1.yvel * 0.5
             bump_sound.play()
         else:
-            player.yvel = 0
-        player.xvel *= 0.5
-        player.move()
+            player1.yvel = 0
+        player1.xvel *= 0.5
+        player1.move()
 
-    if player.x > SCREENWIDTH:
-        player.x -= SCREENWIDTH
-    elif player.x < 0:
-        player.x += SCREENWIDTH
+    if player1.x > SCREENWIDTH:
+        player1.x -= SCREENWIDTH
+    elif player1.x < 0:
+        player1.x += SCREENWIDTH
+
+    # collisions for p2
+    if player2.y + player2.hitradius + player2.yvel < SCREENHEIGHT and player2.y - player2.hitradius + player2.yvel > 0:
+        player2.move()
+
+    else:
+        if player2.y > SCREENHEIGHT - player2.hitradius:
+            player2.y = SCREENHEIGHT - player2.hitradius
+        elif player2.y < player2.hitradius:
+            player2.y = player2.hitradius
+
+        if abs(player2.yvel) > 40/FPS:
+            player2.yvel = -player2.yvel * 0.5
+            bump_sound.play()
+        else:
+            player2.yvel = 0
+        player2.xvel *= 0.5
+        player2.move()
+
+    if player2.x > SCREENWIDTH:
+        player2.x -= SCREENWIDTH
+    elif player2.x < 0:
+        player2.x += SCREENWIDTH
 
     if screen_refresh == 1:
         redrawGameWindow()

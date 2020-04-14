@@ -10,9 +10,6 @@ SCREENWIDTH = 640
 SCREENHEIGHT = 480
 MAXBULLETS = 100
 
-# Screen capture
-sc = False
-
 # Physics constants
 # 8 pixels = 1m
 FPS = 100
@@ -39,20 +36,22 @@ clock = pygame.time.Clock()
 
 class Vessel(object):
 
-    def __init__(self, x, y, width, height, image):
+    def __init__(self, pnumber, x, y, bitmap):
+        self.pnumber = pnumber
         self.x = x
         self.y = y
-        self.width = width
-        self. height = height
+        self.width = bitmap.get_size()[0]
+        self.height = bitmap.get_size()[1]
         self.xvel = 0
         self.yvel = 0
         self.thrust = GRAVITY * 3# + (12*8)/FPS**2
-        self.originalImage = image
+        self.originalImage = bitmap
         self.image = self.originalImage
         self.rect = self.image.get_rect()
         self.rect.center = (x, y)
         self.angle = 0
         self.hitradius = 10
+        self.rocketsound = pygame.mixer.Channel(pnumber)
 
     def accelerate(self):
         self.xvel -= self.thrust * math.sin(math.radians(self.angle))
@@ -61,6 +60,28 @@ class Vessel(object):
     def move(self):
         self.x += self.xvel
         self.y += self.yvel
+
+    def handle(self, controls):
+        if controls["up"]:
+            self.accelerate()
+            xvector = math.sin(math.radians(self.angle))
+            yvector = math.cos(math.radians(self.angle))
+            tailx = self.rect.center[0] + self.height * 0.5 * xvector
+            taily = self.rect.center[1] + self.height * 0.5 * yvector
+            # pygame.draw.circle(frame, (0, 255, 0), (tailx, taily), 5, 1)
+            flames.append(RocketBurn(tailx, taily, self.xvel + 2 * xvector + (random.random() - 0.5), self.yvel + 2 * yvector + (random.random() - 0.5)))
+            if not self.rocketsound.get_busy():
+                self.rocketsound.play(thrust_sound, -1)
+        else:
+            if self.rocketsound.get_busy():
+                self.rocketsound.stop()
+
+        if controls["left"]:
+            self.angle += 2 % 360
+        if controls["right"]:
+            self.angle -= 2 % 360
+
+        self.yvel += GRAVITY
 
     def update(self):
 
@@ -112,17 +133,16 @@ class Events(object):
     def __init__(self):
         self.run = True
 
-        self.p1_up = False
-        self.p1_left = False
-        self.p1_right = False
-        self.p1_down = False
-        self.p1_space = False
-
-        self.p2_up = False
-        self.p2_left = False
-        self.p2_right = False
-        self.p2_down = False
-        self.p2_space = False
+        self.p1_controls = {"up": False,
+                            "left": False,
+                            "right": False,
+                            "down": False,
+                            "shoot": False}
+        self.p2_controls = {"up": False,
+                            "left": False,
+                            "right": False,
+                            "down": False,
+                            "shoot": False}
 
     def handle(self):
         for event in pygame.event.get():
@@ -131,52 +151,52 @@ class Events(object):
 
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_SPACE:
-                    self.p1_space = True
+                    self.p1_controls["shoot"] = True
                 if event.key == pygame.K_LEFT:
-                    self.p1_left = True
+                    self.p1_controls["left"] = True
                 if event.key == pygame.K_UP:
-                    self.p1_up = True
+                    self.p1_controls["up"] = True
                 if event.key == pygame.K_RIGHT:
-                    self.p1_right = True
+                    self.p1_controls["right"] = True
                 if event.key == pygame.K_DOWN:
-                    self.p1_down = True
+                    self.p1_controls["down"] = True
 
                 if event.key == pygame.K_q:
-                    self.p2_space = True
+                    self.p2_controls["shoot"] = True
                 if event.key == pygame.K_a:
-                    self.p2_left = True
+                    self.p2_controls["left"] = True
                 if event.key == pygame.K_w:
-                    self.p2_up = True
+                    self.p2_controls["up"] = True
                 if event.key == pygame.K_d:
-                    self.p2_right = True
+                    self.p2_controls["right"] = True
                 if event.key == pygame.K_s:
-                    self.p2_down = True
+                    self.p2_controls["down"] = True
 
                 if event.key == pygame.K_ESCAPE:
                     self.run = False
 
             if event.type == pygame.KEYUP:
                 if event.key == pygame.K_SPACE:
-                    self.p1_space = False
+                    self.p1_controls["shoot"] = False
                 if event.key == pygame.K_LEFT:
-                    self.p1_left = False
+                    self.p1_controls["left"] = False
                 if event.key == pygame.K_UP:
-                    self.p1_up = False
+                    self.p1_controls["up"] = False
                 if event.key == pygame.K_RIGHT:
-                    self.p1_right = False
+                    self.p1_controls["right"] = False
                 if event.key == pygame.K_DOWN:
-                    self.p1_down = False
+                    self.p1_controls["down"] = False
 
                 if event.key == pygame.K_q:
-                    self.p2_space = False
+                    self.p2_controls["shoot"] = False
                 if event.key == pygame.K_a:
-                    self.p2_left = False
+                    self.p2_controls["left"] = False
                 if event.key == pygame.K_w:
-                    self.p2_up = False
+                    self.p2_controls["up"] = False
                 if event.key == pygame.K_d:
-                    self.p2_right = False
+                    self.p2_controls["right"] = False
                 if event.key == pygame.K_s:
-                    self.p2_down = False
+                    self.p2_controls["down"] = False
 
 def redrawGameWindow():
     global sc
@@ -191,16 +211,13 @@ def redrawGameWindow():
         " yvel: " + '{:>10}'.format(str(round(player1.yvel, 3))) +
         " FPS: " + str(int(clock.get_fps())), 1, (0, 255, 0))
     win.blit(text, (10, 10))
-    if sc:
-        pygame.image.save(win, sc.jpg)
-        sc = False
     pygame.display.update()
 
 # Objects
 events = Events()
 flames = []
-player1 = Vessel(540, 100, 31, 31, rocket1Image)
-player2 = Vessel(100, 100, 31, 31, rocket2Image)
+player1 = Vessel(1, 540, 100, rocket1Image)
+player2 = Vessel(2, 100, 100, rocket2Image)
 screen_refresh = 0
 
 
@@ -209,48 +226,8 @@ while events.run:
     clock.tick(FPS)
 
     events.handle()
-
-    if events.p1_up:
-        player1.accelerate()
-        xvector = math.sin(math.radians(player1.angle))
-        yvector = math.cos(math.radians(player1.angle))
-        tailx = player1.rect.center[0] + player1.height * 0.5 * xvector
-        taily = player1.rect.center[1] + player1.height * 0.5 * yvector
-        # pygame.draw.circle(frame, (0, 255, 0), (tailx, taily), 5, 1)
-        flames.append(RocketBurn(tailx, taily, player1.xvel + 2 * xvector + (random.random() - 0.5), player1.yvel + 2 * yvector + (random.random() - 0.5)))
-        if not thrust_voice1.get_busy():
-            thrust_voice1.play(thrust_sound, -1)
-    else:
-        if thrust_voice1.get_busy():
-            thrust_voice1.stop()
-
-    if events.p1_left:
-        player1.angle += 2 % 360
-    if events.p1_right:
-        player1.angle -= 2 % 360
-    if events.p1_space and not sc:
-        sc = True
-
-    if events.p2_up:
-        player2.accelerate()
-        xvector = math.sin(math.radians(player2.angle))
-        yvector = math.cos(math.radians(player2.angle))
-        tailx = player2.rect.center[0] + player2.height * 0.5 * xvector
-        taily = player2.rect.center[1] + player2.height * 0.5 * yvector
-        # pygame.draw.circle(frame, (0, 255, 0), (tailx, taily), 5, 1)
-        flames.append(RocketBurn(tailx, taily, player2.xvel + 2 * xvector + (random.random() - 0.5), player2.yvel + 2 * yvector + (random.random() - 0.5)))
-        if not thrust_voice2.get_busy():
-            thrust_voice2.play(thrust_sound, -1)
-    else:
-        if thrust_voice2.get_busy():
-            thrust_voice2.stop()
-
-    if events.p2_left:
-        player2.angle += 2 % 360
-    if events.p2_right:
-        player2.angle -= 2 % 360
-    if events.p2_space and not sc:
-        sc = True
+    player1.handle(events.p1_controls)
+    player2.handle(events.p2_controls)
 
     for flame in flames:
         if flame.age < flame.lifeTime:
@@ -258,9 +235,6 @@ while events.run:
             flame.age += 1
         else:
             flames.pop(flames.index(flame))
-
-    player1.yvel += GRAVITY
-    player2.yvel += GRAVITY
 
     # collisions for p1
     if player1.y + player1.hitradius + player1.yvel < SCREENHEIGHT and player1.y - player1.hitradius + player1.yvel > 0:

@@ -6,8 +6,8 @@ import pygame
 pygame.mixer.pre_init(44100, -16, 2, 1024)
 pygame.init()
 
-SCREENWIDTH = 640
-SCREENHEIGHT = 480
+SCREENWIDTH = 1280
+SCREENHEIGHT = 720
 MAXBULLETS = 100
 
 # Physics constants
@@ -62,6 +62,7 @@ class Vessel(object):
         self.y += self.yvel
 
     def handle(self, controls):
+        # Handle controls
         if controls["up"]:
             self.accelerate()
             xvector = math.sin(math.radians(self.angle))
@@ -81,7 +82,32 @@ class Vessel(object):
         if controls["right"]:
             self.angle -= 2 % 360
 
+        # Add gravity force
         self.yvel += GRAVITY
+
+        # Check collisions
+        if self.y + self.hitradius + self.yvel < SCREENHEIGHT and self.y - self.hitradius + self.yvel > 0:
+            self.move()
+
+        else:
+            if self.y > SCREENHEIGHT - self.hitradius:
+                self.y = SCREENHEIGHT - self.hitradius
+            elif self.y < self.hitradius:
+                self.y = self.hitradius
+
+            if abs(self.yvel) > 40/FPS:
+                self.yvel = -self.yvel * 0.5
+                bump_sound.play()
+            else:
+                self.yvel = 0
+
+            self.xvel *= 0.5
+            self.move()
+
+        if self.x > SCREENWIDTH:
+            self.x -= SCREENWIDTH
+        elif self.x < 0:
+            self.x += SCREENWIDTH
 
     def update(self):
 
@@ -128,6 +154,16 @@ class RocketBurn(object):
         g = 0xff >> (self.age >> 3)
         b = 0xff >> (self.age >> 2)
         pygame.draw.circle(frame, (r, g, b), (int(self.x), int(self.y)), int(self.radius))
+
+    def handle(self):
+        if self.age < self.lifeTime:
+            self.move()
+            self.age += 1
+            return True
+        else:
+            # Flame is old and should be killed
+            return False
+
 
 class Events(object):
     def __init__(self):
@@ -218,8 +254,6 @@ events = Events()
 flames = []
 player1 = Vessel(1, 540, 100, rocket1Image)
 player2 = Vessel(2, 100, 100, rocket2Image)
-screen_refresh = 0
-
 
 # Mainloop
 while events.run:
@@ -230,59 +264,7 @@ while events.run:
     player2.handle(events.p2_controls)
 
     for flame in flames:
-        if flame.age < flame.lifeTime:
-            flame.move()
-            flame.age += 1
-        else:
+        if flame.handle() == False:
             flames.pop(flames.index(flame))
 
-    # collisions for p1
-    if player1.y + player1.hitradius + player1.yvel < SCREENHEIGHT and player1.y - player1.hitradius + player1.yvel > 0:
-        player1.move()
-
-    else:
-        if player1.y > SCREENHEIGHT - player1.hitradius:
-            player1.y = SCREENHEIGHT - player1.hitradius
-        elif player1.y < player1.hitradius:
-            player1.y = player1.hitradius
-
-        if abs(player1.yvel) > 40/FPS:
-            player1.yvel = -player1.yvel * 0.5
-            bump_sound.play()
-        else:
-            player1.yvel = 0
-        player1.xvel *= 0.5
-        player1.move()
-
-    if player1.x > SCREENWIDTH:
-        player1.x -= SCREENWIDTH
-    elif player1.x < 0:
-        player1.x += SCREENWIDTH
-
-    # collisions for p2
-    if player2.y + player2.hitradius + player2.yvel < SCREENHEIGHT and player2.y - player2.hitradius + player2.yvel > 0:
-        player2.move()
-
-    else:
-        if player2.y > SCREENHEIGHT - player2.hitradius:
-            player2.y = SCREENHEIGHT - player2.hitradius
-        elif player2.y < player2.hitradius:
-            player2.y = player2.hitradius
-
-        if abs(player2.yvel) > 40/FPS:
-            player2.yvel = -player2.yvel * 0.5
-            bump_sound.play()
-        else:
-            player2.yvel = 0
-        player2.xvel *= 0.5
-        player2.move()
-
-    if player2.x > SCREENWIDTH:
-        player2.x -= SCREENWIDTH
-    elif player2.x < 0:
-        player2.x += SCREENWIDTH
-
-    if screen_refresh == 1:
-        redrawGameWindow()
-        screen_refresh = 0
-    screen_refresh += 1
+    redrawGameWindow()

@@ -19,7 +19,7 @@ win = pygame.display.set_mode((SCREENWIDTH, SCREENHEIGHT))
 # win = pygame.display.set_mode((SCREENWIDTH, SCREENHEIGHT), pygame.FULLSCREEN)
 pygame.display.set_caption("First flight")
 
-bg = pygame.image.load('images/bg.png')
+bg = pygame.image.load('images/kuva.png')
 rocket1Image = pygame.image.load('images/rocket.png')
 rocket2Image = pygame.image.load('images/rocket2.png')
 
@@ -52,10 +52,27 @@ class Vessel(object):
         self.angle = 0
         self.hitradius = 10
         self.rocketsound = pygame.mixer.Channel(pnumber)
+        self.shot = False
 
     def accelerate(self):
         self.xvel -= self.thrust * math.sin(math.radians(self.angle))
         self.yvel -= self.thrust * math.cos(math.radians(self.angle))
+
+        # Make visual rocket burn and sound
+        xvector = math.sin(math.radians(self.angle))
+        yvector = math.cos(math.radians(self.angle))
+        tailx = self.rect.center[0] + self.width * 0.5 * xvector
+        taily = self.rect.center[1] + self.height * 0.5 * yvector
+        flames.append(RocketBurn(tailx, taily, self.xvel + 2 * xvector + (random.random() - 0.5), self.yvel + 2 * yvector + (random.random() - 0.5)))
+        if not self.rocketsound.get_busy():
+            self.rocketsound.play(thrust_sound, -1)
+
+    def shoot(self):
+        xvector = math.sin(math.radians(self.angle))
+        yvector = math.cos(math.radians(self.angle))
+        frontx = self.rect.center[0] - self.width * 0.5 * xvector
+        fronty = self.rect.center[1] - self.height * 0.5 * yvector
+        projectiles.append(Bullet(frontx, fronty, self.xvel - 4 * xvector, self.yvel - 4 * yvector))
 
     def move(self):
         self.x += self.xvel
@@ -65,14 +82,6 @@ class Vessel(object):
         # Handle controls
         if controls["up"]:
             self.accelerate()
-            xvector = math.sin(math.radians(self.angle))
-            yvector = math.cos(math.radians(self.angle))
-            tailx = self.rect.center[0] + self.height * 0.5 * xvector
-            taily = self.rect.center[1] + self.height * 0.5 * yvector
-            # pygame.draw.circle(frame, (0, 255, 0), (tailx, taily), 5, 1)
-            flames.append(RocketBurn(tailx, taily, self.xvel + 2 * xvector + (random.random() - 0.5), self.yvel + 2 * yvector + (random.random() - 0.5)))
-            if not self.rocketsound.get_busy():
-                self.rocketsound.play(thrust_sound, -1)
         else:
             if self.rocketsound.get_busy():
                 self.rocketsound.stop()
@@ -82,7 +91,14 @@ class Vessel(object):
         if controls["right"]:
             self.angle -= 2 % 360
 
-        # Add gravity force
+        if controls["shoot"] and not self.shot:
+            self.shoot()
+            self.shot = True
+
+        if not controls["shoot"]:
+            self.shot = False
+
+        # Add gravity
         self.yvel += GRAVITY
 
         # Check collisions
@@ -130,6 +146,35 @@ class Vessel(object):
             frame.blit(self.image, (self.rect[0] - SCREENWIDTH, self.rect[1], self.rect[2], self.rect[3]))
         # elif self.x < SCREENWIDTH:
         #     frame.blit(self.image, (self.rect[0] + SCREENWIDTH, self.rect[1], self.rect[2], self.rect[3]))
+
+class Bullet(object):
+    def __init__(self, x, y, xvel, yvel):
+        self.x = x
+        self.y = y
+        self.xvel = xvel
+        self.yvel = yvel
+        self.age = 0
+        self.lifeTime = 1000
+        self.color = (255, 255, 255)
+
+    def move(self):
+        # Add gravity
+        self.yvel += GRAVITY
+
+        self.x += self.xvel
+        self.y += self.yvel
+
+    def draw(self, frame):
+        pygame.draw.circle(frame, self.color, (int(self.x), int(self.y)), 0)
+
+    def handle(self):
+        if self.age < self.lifeTime:
+            self.move()
+            self.age += 1
+            return True
+        else:
+            # Bullet is old and should be killed
+            return False
 
 class RocketBurn(object):
     def __init__(self, x, y, xvel, yvel):
@@ -241,6 +286,8 @@ def redrawGameWindow():
     win.blit(bg, (0, 0))
     for flame in flames:
         flame.draw(win)
+    for projectile in projectiles:
+        projectile.draw(win)
     player1.draw(win)
     player2.draw(win)
     text = font.render("xvel: " + '{:>10}'.format(str(round(player1.xvel, 3))) +
@@ -252,6 +299,7 @@ def redrawGameWindow():
 # Objects
 events = Events()
 flames = []
+projectiles = []
 player1 = Vessel(1, 540, 100, rocket1Image)
 player2 = Vessel(2, 100, 100, rocket2Image)
 
@@ -264,7 +312,12 @@ while events.run:
     player2.handle(events.p2_controls)
 
     for flame in flames:
-        if flame.handle() == False:
+        if not flame.handle():
             flames.pop(flames.index(flame))
+
+    for projectile in projectiles:
+            if not projectile.handle():
+                projectiles.pop(projectiles.index(projectile))
+
 
     redrawGameWindow()

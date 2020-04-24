@@ -15,8 +15,8 @@ MAXBULLETS = 100
 FPS = 100
 GRAVITY = (9.81*8)/FPS**2
 
-# win = pygame.display.set_mode((SCREENWIDTH, SCREENHEIGHT))
-win = pygame.display.set_mode((SCREENWIDTH, SCREENHEIGHT), pygame.FULLSCREEN)
+win = pygame.display.set_mode((SCREENWIDTH, SCREENHEIGHT))
+# win = pygame.display.set_mode((SCREENWIDTH, SCREENHEIGHT), pygame.FULLSCREEN)
 pygame.display.set_caption("First flight")
 
 bg = pygame.image.load('images/kuva.png')
@@ -231,7 +231,7 @@ class Events(object):
                 self.run = False
 
             if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_RCTRL:
+                if event.key == pygame.K_SPACE:
                     self.p1_controls["shoot"] = True
                 if event.key == pygame.K_LEFT:
                     self.p1_controls["left"] = True
@@ -242,7 +242,7 @@ class Events(object):
                 if event.key == pygame.K_DOWN:
                     self.p1_controls["down"] = True
 
-                if event.key == pygame.K_LCTRL:
+                if event.key == pygame.K_q:
                     self.p2_controls["shoot"] = True
                 if event.key == pygame.K_a:
                     self.p2_controls["left"] = True
@@ -257,7 +257,7 @@ class Events(object):
                     self.run = False
 
             if event.type == pygame.KEYUP:
-                if event.key == pygame.K_RCTRL:
+                if event.key == pygame.K_SPACE:
                     self.p1_controls["shoot"] = False
                 if event.key == pygame.K_LEFT:
                     self.p1_controls["left"] = False
@@ -268,7 +268,7 @@ class Events(object):
                 if event.key == pygame.K_DOWN:
                     self.p1_controls["down"] = False
 
-                if event.key == pygame.K_LCTRL:
+                if event.key == pygame.K_q:
                     self.p2_controls["shoot"] = False
                 if event.key == pygame.K_a:
                     self.p2_controls["left"] = False
@@ -302,10 +302,6 @@ flames = []
 projectiles = []
 player1 = Vessel(1, 540, 100, rocket1Image)
 player2 = Vessel(2, 100, 100, rocket2Image)
-
-# Update background
-win.blit(bg, (0, 0))
-pygame.display.update()
 
 # Mainloop
 while events.run:

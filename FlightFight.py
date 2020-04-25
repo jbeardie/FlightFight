@@ -30,7 +30,7 @@ thrust_voice2 = pygame.mixer.Channel(6)
 thrust_sound = pygame.mixer.Sound('sfx/chopidle.wav')
 bump_sound = pygame.mixer.Sound('sfx/bump.wav')
 
-font = pygame.font.SysFont('fixedsys', 20, True)
+font = pygame.font.SysFont('VeraMono.ttf', 20, True)
 
 clock = pygame.time.Clock()
 
@@ -147,6 +147,8 @@ class Vessel(object):
         # elif self.x < SCREENWIDTH:
         #     frame.blit(self.image, (self.rect[0] + SCREENWIDTH, self.rect[1], self.rect[2], self.rect[3]))
 
+        return self.rect
+
 class Bullet(object):
     def __init__(self, x, y, xvel, yvel):
         self.x = x
@@ -165,7 +167,8 @@ class Bullet(object):
         self.y += self.yvel
 
     def draw(self, frame):
-        pygame.draw.circle(frame, self.color, (int(self.x), int(self.y)), 0)
+        rect = pygame.draw.circle(frame, self.color, (int(self.x), int(self.y)), 0)
+        return rect
 
     def handle(self):
         if self.age < self.lifeTime:
@@ -185,7 +188,7 @@ class RocketBurn(object):
         self.age = 0
         self.lifeTime = 20
         self.color = (255, 255, 255)
-        self.radius = 1
+        self.radius = 2
         self.opacity = 0
 
     def move(self):
@@ -198,7 +201,7 @@ class RocketBurn(object):
         r = 0xff >> (self.age >> 4)
         g = 0xff >> (self.age >> 3)
         b = 0xff >> (self.age >> 2)
-        pygame.draw.circle(frame, (r, g, b), (int(self.x), int(self.y)), int(self.radius))
+        return pygame.draw.circle(frame, (r, g, b), (int(self.x), int(self.y)), int(self.radius))
 
     def handle(self):
         if self.age < self.lifeTime:
@@ -279,22 +282,42 @@ class Events(object):
                 if event.key == pygame.K_s:
                     self.p2_controls["down"] = False
 
+newrects = []
+oldrects = []
+
 def redrawGameWindow():
-    global sc
     # pygame.draw.rect(win, (0, 0, 0), (0, 0, SCREENWIDTH, SCREENHEIGHT))
     # pygame.draw.rect(win, (128, 128, 128), (0, 0, SCREENWIDTH, SCREENHEIGHT), 3)
-    win.blit(bg, (0, 0))
+
+    global newrects
+    global oldrects
+
+    for rect in oldrects:
+        if rect[0] + rect[2] <= SCREENWIDTH and rect[0] >=0 and rect[1] >= 0 and rect[1] + rect[3] <= SCREENHEIGHT:
+            dirtyrect = bg.subsurface(rect)
+            win.blit(dirtyrect, rect)
+
+    # win.blit(bg, (0, 0))
     for flame in flames:
-        flame.draw(win)
+        newrects.append(flame.draw(win))
     for projectile in projectiles:
-        projectile.draw(win)
-    player1.draw(win)
-    player2.draw(win)
-    text = font.render("xvel: " + '{:>10}'.format(str(round(player1.xvel, 3))) +
-        " yvel: " + '{:>10}'.format(str(round(player1.yvel, 3))) +
+        newrects.append(projectile.draw(win))
+    newrects.append(player1.draw(win))
+    newrects.append(player2.draw(win))
+    text = font.render("xvel: " + '{:+.3f}'.format(player1.xvel) +
+        " yvel: " + '{:+.3f}'.format(player1.yvel, 3) +
         " FPS: " + str(int(clock.get_fps())), 1, (0, 255, 0))
-    win.blit(text, (10, 10))
-    pygame.display.update()
+    #    text = font.render("xvel: " + '{:+>10}'.format(str(round(player1.xvel, 3))) +
+    #    " yvel: " + '{:+>10}'.format(str(round(player1.yvel, 3))) +
+    #    " FPS: " + str(int(clock.get_fps())), 1, (0, 255, 0))
+    newrects.append(win.blit(text, (10, 700)))
+    # print(oldrects+newrects)
+    pygame.display.update(oldrects + newrects)
+    # replace old rects with new rects
+    oldrects = newrects[:]
+    newrects.clear()
+
+
 
 # Objects
 events = Events()

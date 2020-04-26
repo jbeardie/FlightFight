@@ -167,7 +167,8 @@ class Bullet(object):
         self.y += self.yvel
 
     def draw(self, frame):
-        rect = pygame.draw.circle(frame, self.color, (int(self.x), int(self.y)), 0)
+        # rect = pygame.draw.circle(frame, self.color, (int(self.x), int(self.y)), 0)
+        rect = pygame.draw.rect(frame, self.color, (int(self.x), int(self.y), 2, 2), 1)
         return rect
 
     def handle(self):

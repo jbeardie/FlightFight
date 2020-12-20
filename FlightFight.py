@@ -8,7 +8,7 @@ pygame.init()
 
 SCREENWIDTH = 1280
 SCREENHEIGHT = 720
-MAXBULLETS = 100
+MAXPROJECTILES = 100
 
 # Physics constants
 # 8 pixels = 1m
@@ -19,7 +19,7 @@ win = pygame.display.set_mode((SCREENWIDTH, SCREENHEIGHT))
 # win = pygame.display.set_mode((SCREENWIDTH, SCREENHEIGHT), pygame.FULLSCREEN)
 pygame.display.set_caption("Flight Fight")
 
-bg = pygame.image.load('images/kuva.png')
+bg = pygame.image.load('images/flightfight.png')
 rocket1Image = pygame.image.load('images/rocket.png')
 rocket2Image = pygame.image.load('images/rocket2.png')
 
@@ -27,6 +27,13 @@ pygame.mixer.set_num_channels(8)
 thrust_sound = pygame.mixer.Sound('sfx/chopidle.wav')
 bump_sound = pygame.mixer.Sound('sfx/bump.wav')
 shot_sound = pygame.mixer.Sound('sfx/shot.wav')
+hit_channel = pygame.mixer.Channel(5)
+hit_sound = []
+hit_sound.append(pygame.mixer.Sound('sfx/hit-1.wav'))
+hit_sound.append(pygame.mixer.Sound('sfx/hit-2.wav'))
+hit_sound.append(pygame.mixer.Sound('sfx/hit-3.wav'))
+explosion_sound = pygame.mixer.Sound('sfx/explosion.wav')
+
 
 font = pygame.font.SysFont('VeraMono.ttf', 20, True)
 
@@ -52,6 +59,8 @@ class Vessel(object):
         self.rocketsound = pygame.mixer.Channel(pnumber)
         self.shotsound = pygame.mixer.Channel(pnumber+2)
         self.shot = False
+        self.health = 100
+        self.alive = True
 
     def accelerate(self):
         self.xvel -= self.thrust * math.sin(math.radians(self.angle))
@@ -71,7 +80,7 @@ class Vessel(object):
         yvector = math.cos(math.radians(self.angle))
         frontx = self.rect.center[0] - self.width * 0.5 * xvector
         fronty = self.rect.center[1] - self.height * 0.5 * yvector
-        projectiles.append(Bullet(frontx, fronty, self.xvel - 4 * xvector, self.yvel - 4 * yvector))
+        projectiles.append(Projectile(frontx, fronty, self.xvel - 4 * xvector, self.yvel - 4 * yvector))
         if self.shotsound.get_busy():
             self.shotsound.stop()
         self.shotsound.play(shot_sound)
@@ -121,6 +130,7 @@ class Vessel(object):
 
             self.xvel *= 0.5
             self.move()
+            
 
         if self.x > SCREENWIDTH:
             self.x -= SCREENWIDTH
@@ -150,16 +160,26 @@ class Vessel(object):
         #     frame.blit(self.image, (self.rect[0] + SCREENWIDTH, self.rect[1], self.rect[2], self.rect[3]))
 
         return self.rect
+    
+    def explode(self):
+        self.alive = False
 
-class Bullet(object):
+        explosion_sound.play()
+
+        particles = 100
+        for x in range(particles):
+            projectiles.append(Projectile(self.rect.center[0], self.rect.center[1], self.xvel + random.random()*4 - 2, self.yvel + random.random()*4 - 2))
+
+
+class Projectile(object):
     def __init__(self, x, y, xvel, yvel):
         self.x = x
         self.y = y
         self.xvel = xvel
         self.yvel = yvel
         self.age = 0
-        self.lifeTime = 1000
-        self.color = (255, 255, 255)
+        self.lifeTime = 1200
+        self.color = (255, 0, 0)
 
     def move(self):
         # Add gravity
@@ -170,16 +190,40 @@ class Bullet(object):
 
     def draw(self, frame):
         # rect = pygame.draw.circle(frame, self.color, (int(self.x), int(self.y)), 0)
-        rect = pygame.draw.rect(frame, self.color, (int(self.x), int(self.y), 2, 2), 1)
-        return rect
+        self.rect = pygame.draw.rect(frame, self.color, (int(self.x), int(self.y), 2, 2), 1)
+        return self.rect
+
+    def hit_to_player(self, player):
+        # Coarse hit check
+        #if (player.x < self.x < player.x+player.width) and (player.y < self.y < player.y+player.height):
+        # Radius hit check
+        dx = abs(self.x-player.rect.center[0])
+        dy = abs(self.y-player.rect.center[1])
+        radius = player.hitradius
+
+        # Check if the projectile is in the target square
+        if dx < radius and dy < radius:
+            # Check if the projectile is in the target circle
+            if dx**2 + dy**2 <= radius**2:
+                self.age = self.lifeTime
+                dxvel = self.xvel - player.xvel
+                dyvel = self.yvel - player.yvel
+                magnitude = math.sqrt(dxvel**2 + dyvel**2)
+                if hit_channel.get_busy():
+                    hit_channel.stop()
+                hit_channel.play(random.choice(hit_sound))
+                player.health -= int(magnitude)
+                # print("hit!", dxvel, dyvel, magnitude)
+
 
     def handle(self):
+        # Check if projectile hits to player1
         if self.age < self.lifeTime:
             self.move()
             self.age += 1
             return True
         else:
-            # Bullet is old and should be killed
+            # Projectile is old and should be killed
             return False
 
 class RocketBurn(object):
@@ -289,9 +333,6 @@ newrects = []
 oldrects = []
 
 def redrawGameWindow():
-    # pygame.draw.rect(win, (0, 0, 0), (0, 0, SCREENWIDTH, SCREENHEIGHT))
-    # pygame.draw.rect(win, (128, 128, 128), (0, 0, SCREENWIDTH, SCREENHEIGHT), 3)
-
     global newrects
     global oldrects
 
@@ -305,16 +346,17 @@ def redrawGameWindow():
         newrects.append(flame.draw(win))
     for projectile in projectiles:
         newrects.append(projectile.draw(win))
-    newrects.append(player1.draw(win))
-    newrects.append(player2.draw(win))
-    text = font.render("xvel: " + '{:+.3f}'.format(player1.xvel) +
-        " yvel: " + '{:+.3f}'.format(player1.yvel, 3) +
+    if player1.alive:
+        newrects.append(player1.draw(win))
+    if player2.alive:
+        newrects.append(player2.draw(win))
+    text = font.render("P1: " + str(player1.health) +
+        " P2: " + str(player2.health) +
         " FPS: " + str(int(clock.get_fps())), 1, (0, 255, 0))
-    #    text = font.render("xvel: " + '{:+>10}'.format(str(round(player1.xvel, 3))) +
-    #    " yvel: " + '{:+>10}'.format(str(round(player1.yvel, 3))) +
-    #    " FPS: " + str(int(clock.get_fps())), 1, (0, 255, 0))
+    # text = font.render("xvel: " + '{:+.3f}'.format(player1.xvel) +
+    #     " yvel: " + '{:+.3f}'.format(player1.yvel, 3) +
+    #     " FPS: " + str(int(clock.get_fps())), 1, (0, 255, 0))
     newrects.append(win.blit(text, (10, 700)))
-    # print(oldrects+newrects)
     pygame.display.update(oldrects + newrects)
     # replace old rects with new rects
     oldrects = newrects[:]
@@ -337,15 +379,40 @@ pygame.display.update()
 while events.run:
     clock.tick(FPS)
 
+    if player1.alive and player1.health <= 0:
+        events.p1_controls = {"up": False,
+                            "left": False,
+                            "right": False,
+                            "down": False,
+                            "shoot": False}
+        player1.handle(events.p1_controls)
+        player1.explode()
+    
+    if player2.alive and player2.health <= 0:
+        events.p2_controls = {"up": False,
+                            "left": False,
+                            "right": False,
+                            "down": False,
+                            "shoot": False}
+        player2.handle(events.p2_controls)
+        player2.explode()
+
+
     events.handle()
-    player1.handle(events.p1_controls)
-    player2.handle(events.p2_controls)
+    if player1.alive:
+        player1.handle(events.p1_controls)
+    if player2.alive:
+        player2.handle(events.p2_controls)
 
     for flame in flames:
         if not flame.handle():
             flames.pop(flames.index(flame))
 
     for projectile in projectiles:
+            if player1.alive:
+                projectile.hit_to_player(player1)
+            if player2.alive:
+                projectile.hit_to_player(player2)
             if not projectile.handle():
                 projectiles.pop(projectiles.index(projectile))
 

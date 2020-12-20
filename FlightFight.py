@@ -15,20 +15,18 @@ MAXBULLETS = 100
 FPS = 100
 GRAVITY = (9.81*8)/FPS**2
 
-# win = pygame.display.set_mode((SCREENWIDTH, SCREENHEIGHT))
-win = pygame.display.set_mode((SCREENWIDTH, SCREENHEIGHT), pygame.FULLSCREEN)
-pygame.display.set_caption("First flight")
+win = pygame.display.set_mode((SCREENWIDTH, SCREENHEIGHT))
+# win = pygame.display.set_mode((SCREENWIDTH, SCREENHEIGHT), pygame.FULLSCREEN)
+pygame.display.set_caption("Flight Fight")
 
 bg = pygame.image.load('images/kuva.png')
 rocket1Image = pygame.image.load('images/rocket.png')
 rocket2Image = pygame.image.load('images/rocket2.png')
 
-
 pygame.mixer.set_num_channels(8)
-thrust_voice1 = pygame.mixer.Channel(5)
-thrust_voice2 = pygame.mixer.Channel(6)
 thrust_sound = pygame.mixer.Sound('sfx/chopidle.wav')
 bump_sound = pygame.mixer.Sound('sfx/bump.wav')
+shot_sound = pygame.mixer.Sound('sfx/shot.wav')
 
 font = pygame.font.SysFont('VeraMono.ttf', 20, True)
 
@@ -52,6 +50,7 @@ class Vessel(object):
         self.angle = 0
         self.hitradius = 10
         self.rocketsound = pygame.mixer.Channel(pnumber)
+        self.shotsound = pygame.mixer.Channel(pnumber+2)
         self.shot = False
 
     def accelerate(self):
@@ -73,6 +72,9 @@ class Vessel(object):
         frontx = self.rect.center[0] - self.width * 0.5 * xvector
         fronty = self.rect.center[1] - self.height * 0.5 * yvector
         projectiles.append(Bullet(frontx, fronty, self.xvel - 4 * xvector, self.yvel - 4 * yvector))
+        if self.shotsound.get_busy():
+            self.shotsound.stop()
+        self.shotsound.play(shot_sound)
 
     def move(self):
         self.x += self.xvel

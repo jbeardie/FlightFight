@@ -147,20 +147,18 @@ class Vessel(object):
     def draw(self, frame):
         self.update()
         frame.blit(self.image, self.rect)
-        # pygame.draw.rect(frame, (255, 0, 0), (self.rect[0] + (self.rect[2]//2), self.rect[1] + self.rect[3] //2, self.rect[2], self.rect[3]), 1)
-        # tailx = int(self.rect.center[0] + self.height * 0.5 * math.sin(math.radians(self.angle)))
-        # taily = int(self.rect.center[1] + self.height * 0.5 * math.cos(math.radians(self.angle)))
-        # pygame.draw.circle(frame, (0, 255, 0), (tailx, taily), 5, 1)
-        # pygame.draw.rect(frame, (255, 0, 0), self.rect, 1)
-        # pygame.draw.circle(frame, (0, 255, 0), (int(self.x), int(self.y)), self.hitradius, 1)
-        # offscreen from right
-        if self.x + self.width > SCREENWIDTH:
-            frame.blit(self.image, (self.rect[0] - SCREENWIDTH, self.rect[1], self.rect[2], self.rect[3]))
-        # elif self.x < SCREENWIDTH:
-        #     frame.blit(self.image, (self.rect[0] + SCREENWIDTH, self.rect[1], self.rect[2], self.rect[3]))
+
 
         return self.rect
     
+    def draw_healthbar(self, frame):
+        healthbar = pygame.draw.rect(frame, (255, 0, 0), (self.x-13, self.y-24, 25, 6))
+        if self.health >= 0:
+            pygame.draw.rect(frame, (0, 255, 0), (self.x-13, self.y-24, 1 + self.health>>2, 6))
+        
+        return healthbar
+
+
     def explode(self):
         self.alive = False
 
@@ -186,6 +184,10 @@ class Projectile(object):
         self.yvel += GRAVITY
 
         self.x += self.xvel
+        if self.x < 0:
+            self.x += SCREENWIDTH
+        elif self.x > SCREENWIDTH:
+            self.x -= SCREENWIDTH
         self.y += self.yvel
 
     def draw(self, frame):
@@ -213,6 +215,8 @@ class Projectile(object):
                     hit_channel.stop()
                 hit_channel.play(random.choice(hit_sound))
                 player.health -= int(magnitude)
+                player.xvel += self.xvel/16
+                player.yvel += self.yvel/16
                 # print("hit!", dxvel, dyvel, magnitude)
 
 
@@ -336,20 +340,47 @@ def redrawGameWindow():
     global newrects
     global oldrects
 
-    for rect in oldrects:
-        if rect[0] + rect[2] <= SCREENWIDTH and rect[0] >=0 and rect[1] >= 0 and rect[1] + rect[3] <= SCREENHEIGHT:
-            dirtyrect = bg.subsurface(rect)
-            win.blit(dirtyrect, rect)
+    # for rect in oldrects:
+    #     if rect[0] + rect[2] <= SCREENWIDTH and rect[0] >=0 and rect[1] >= 0 and rect[1] + rect[3] <= SCREENHEIGHT:
+    #         dirtyrect = bg.subsurface(rect)
+    #         win.blit(dirtyrect, rect)
+    
+    # update background over dirty rectangles
+    # for rect in oldrects:
+    #     if rect[0] <= SCREENWIDTH and rect[0] >=0 and rect[1] >= 0 and rect[1] <= SCREENHEIGHT:
+    #         if rect[0] + rect[2] < SCREENWIDTH:
+    #             rect[2] -= rect[0] + rect[2] - SCREENWIDTH
+    #         if rect[1] + rect[3] > SCREENHEIGHT:
+    #             rect[3] -= rect[1] + rect[3] - SCREENHEIGHT
+    #         dirtyrect = bg.subsurface(rect)
+    #         win.blit(dirtyrect, rect)
 
-    # win.blit(bg, (0, 0))
+    for rect in oldrects:
+        if rect[0] < 0:
+            rect[2] == rect[0] 
+            rect[0] = 0
+        if rect[0] + rect[2] > SCREENWIDTH:
+            rect[2] -= rect[0] + rect[2] - SCREENWIDTH
+        if rect[1] < 0:
+            rect[3] += rect[1] 
+            rect[1] = 0
+        if rect[1] + rect[3] > SCREENHEIGHT:
+            rect[3] -= rect[1] + rect[3] - SCREENHEIGHT
+        dirtyrect = bg.subsurface(rect)
+        win.blit(dirtyrect, rect)
+
+
+
     for flame in flames:
         newrects.append(flame.draw(win))
     for projectile in projectiles:
         newrects.append(projectile.draw(win))
     if player1.alive:
         newrects.append(player1.draw(win))
+        newrects.append(player1.draw_healthbar(win))
     if player2.alive:
         newrects.append(player2.draw(win))
+        newrects.append(player2.draw_healthbar(win))
     text = font.render("P1: " + str(player1.health) +
         " P2: " + str(player2.health) +
         " FPS: " + str(int(clock.get_fps())), 1, (0, 255, 0))

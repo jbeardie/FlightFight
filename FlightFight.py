@@ -19,10 +19,13 @@ win = pygame.display.set_mode((SCREENWIDTH, SCREENHEIGHT))
 # win = pygame.display.set_mode((SCREENWIDTH, SCREENHEIGHT), pygame.FULLSCREEN)
 pygame.display.set_caption("Flight Fight")
 
-bg = pygame.image.load('images/flightfight.png')
-rocket1Image = pygame.image.load('images/rocket.png')
-rocket2Image = pygame.image.load('images/rocket2.png')
+# Images
+bg = pygame.image.load('images/testmap.png').convert()
+bgmask = pygame.mask.from_surface(pygame.image.load('images/testmap_mask.png'))
+rocket1Image = pygame.image.load('images/rocket.png').convert_alpha()
+rocket2Image = pygame.image.load('images/rocket2.png').convert_alpha()
 
+# Sound effects
 pygame.mixer.set_num_channels(8)
 thrust_sound = pygame.mixer.Sound('sfx/chopidle.wav')
 bump_sound = pygame.mixer.Sound('sfx/bump.wav')
@@ -34,12 +37,11 @@ hit_sound.append(pygame.mixer.Sound('sfx/hit-2.wav'))
 hit_sound.append(pygame.mixer.Sound('sfx/hit-3.wav'))
 explosion_sound = pygame.mixer.Sound('sfx/explosion.wav')
 
-
 font = pygame.font.SysFont('VeraMono.ttf', 20, True)
 
 clock = pygame.time.Clock()
 
-class Vessel(object):
+class Vessel(pygame.sprite.Sprite):
 
     def __init__(self, pnumber, x, y, bitmap):
         self.pnumber = pnumber
@@ -61,6 +63,11 @@ class Vessel(object):
         self.shot = False
         self.health = 100
         self.alive = True
+        self.masksurf = pygame.Surface((self.hitradius*2, self.hitradius*2), pygame.SRCALPHA)
+        # maskrect = pygame.draw.rect(self.masksurf, (0,0,255), self.masksurf.get_rect(), 1)
+        maskCircle = pygame.draw.circle(self.masksurf, (255, 0, 0), (self.hitradius,self.hitradius), self.hitradius)
+        self.mask = pygame.mask.from_surface(self.masksurf)
+        self.hit = False
 
     def accelerate(self):
         self.xvel -= self.thrust * math.sin(math.radians(self.angle))
@@ -105,7 +112,6 @@ class Vessel(object):
         if controls["shoot"] and not self.shot:
             self.shoot()
             self.shot = True
-
         if not controls["shoot"]:
             self.shot = False
 
@@ -113,8 +119,10 @@ class Vessel(object):
         self.yvel += GRAVITY
 
         # Check collisions
+
+        # Cehck that the vessel is not outside screen height
         if self.y + self.hitradius + self.yvel < SCREENHEIGHT and self.y - self.hitradius + self.yvel > 0:
-            self.move()
+            self.x = self.x
 
         else:
             if self.y > SCREENHEIGHT - self.hitradius:
@@ -127,10 +135,90 @@ class Vessel(object):
                 bump_sound.play()
             else:
                 self.yvel = 0
-
-            self.xvel *= 0.5
-            self.move()
             
+            self.xvel *= 0.5
+
+        # Check if vessel hits to map mask in next loop
+        futurex = self.x + self.xvel
+        futurey = self.y + self.yvel
+        xvel = self.xvel
+        yvel = self.yvel
+        hit = bgmask.overlap(self.mask, (int(futurex)-self.hitradius, int(futurey)-self.hitradius))
+        while hit:
+            # hitmatrix = [[bgmask.get_at((hit[0]-1, hit[1]-1)), bgmask.get_at((hit[0], hit[1]-1)), bgmask.get_at((hit[0]+1, hit[1]-1))],
+            #     [bgmask.get_at((hit[0]-1, hit[1])), bgmask.get_at(hit), bgmask.get_at((hit[0]+1, hit[1]))],
+            #     [bgmask.get_at((hit[0]-1, hit[1]+1)), bgmask.get_at((hit[0], hit[1]+1)), bgmask.get_at((hit[0]+1, hit[1]+1))]]
+            
+            # for i in hitmatrix:
+            #     for j in i:
+            #         print(j, end="")
+            #     print()
+            # print(self.x, self.xvel, self.y, self.yvel)
+        
+            if self.xvel >= 0 and self.yvel >= 0: # coming from upper left
+                # print("NW")
+                xcheck = bgmask.get_at((hit[0]-1, hit[1]))
+                ycheck = bgmask.get_at((hit[0], hit[1]-1))
+            elif self.xvel < 0 and self.yvel >= 0: # coming from upper right
+                # print("NE")
+                xcheck = bgmask.get_at((hit[0]+1, hit[1]))
+                ycheck = bgmask.get_at((hit[0], hit[1]-1))
+            elif self.xvel >= 0 and self.yvel <=0: # coming from lower left
+                # print("SW")
+                xcheck = bgmask.get_at((hit[0]-1, hit[1]))
+                ycheck = bgmask.get_at((hit[0], hit[1]+1))
+            else: # coming from lower right
+                # print("SE")
+                xcheck = bgmask.get_at((hit[0]+1, hit[1]))
+                ycheck = bgmask.get_at((hit[0], hit[1]+1))
+
+            if not xcheck and not ycheck: # corner hit
+                if self.xvel >= 0 and self.yvel >= 0 or self.xvel < 0 and self.yvel < 0:
+                    if abs(self.xvel) >= abs(self.yvel):
+                        yvel = self.yvel
+                        self.yvel = -self.xvel
+                        self.xvel = yvel
+                    else:
+                        xvel = self.xvel
+                        self.xvel = -self.yvel
+                        self.yvel = xvel
+                else:
+                    if abs(self.xvel) >= abs(self.yvel):
+                        yvel = self.yvel
+                        self.yvel = self.xvel
+                        self.xvel = -yvel
+                    else:
+                        xvel = self.xvel
+                        self.xvel = self.yvel
+                        self.yvel = -xvel
+
+            elif xcheck and not ycheck: # vertical flat hit
+                self.yvel = -self.yvel
+            elif not xcheck and ycheck: # horizontal flat hit
+                self.xvel = -self.xvel
+            
+            else: # Too much speed. Bounce the vessel back to original direction.
+                self.xvel = -self.xvel
+                self.yvel = -self.yvel
+        
+            # self.move()
+            futurex = self.x + self.xvel
+            futurey = self.y + self.yvel
+            hit = bgmask.overlap(self.mask, (int(futurex)-self.hitradius, int(futurey)-self.hitradius))
+
+            self.hit = True                
+
+        self.move()
+
+        if self.hit:
+            hitforce = abs(xvel - self.xvel) + abs(yvel- self.yvel)
+            if hitforce > 0.5:
+                print(hitforce)
+                self.health -= int(hitforce)
+                bump_sound.play()
+            self.xvel *= 0.5
+            self.yvel *= 0.5
+            self.hit = False
 
         if self.x > SCREENWIDTH:
             self.x -= SCREENWIDTH
@@ -140,13 +228,13 @@ class Vessel(object):
     def update(self):
 
         self.image = pygame.transform.rotate(self.originalImage, self.angle)
-        # x, y = self.rect.center  # Save its current center.
         self.rect = self.image.get_rect()  # Replace old rect with new rect.
         self.rect.center = (self.x, self.y)  # Put the new rect's center at old center.
 
     def draw(self, frame):
         self.update()
         frame.blit(self.image, self.rect)
+        # frame.blit(self.masksurf, (self.rect.centerx-self.hitradius, self.rect.centery-self.hitradius))
 
 
         return self.rect
@@ -168,8 +256,7 @@ class Vessel(object):
         for x in range(particles):
             projectiles.append(Projectile(self.rect.center[0], self.rect.center[1], self.xvel + random.random()*4 - 2, self.yvel + random.random()*4 - 2))
 
-
-class Projectile(object):
+class Projectile(pygame.sprite.Sprite):
     def __init__(self, x, y, xvel, yvel):
         self.x = x
         self.y = y
@@ -221,8 +308,18 @@ class Projectile(object):
 
 
     def handle(self):
-        # Check if projectile hits to player1
-        if self.age < self.lifeTime:
+        
+        # If projectile is not hitting a wall and not too old
+        x = int(self.x)
+        y = int(self.y)
+
+        # This is a bug fix line
+        if x > SCREENWIDTH:
+            x -= SCREENWIDTH
+        
+        if y < 0 or y > SCREENHEIGHT-1:
+            return False
+        elif not bgmask.get_at((x, y)) and self.age < self.lifeTime:
             self.move()
             self.age += 1
             return True
@@ -230,7 +327,7 @@ class Projectile(object):
             # Projectile is old and should be killed
             return False
 
-class RocketBurn(object):
+class RocketBurn(pygame.sprite.Sprite):
     def __init__(self, x, y, xvel, yvel):
         self.x = x
         self.y = y
@@ -262,7 +359,6 @@ class RocketBurn(object):
         else:
             # Flame is old and should be killed
             return False
-
 
 class Events(object):
     def __init__(self):
@@ -340,21 +436,7 @@ def redrawGameWindow():
     global newrects
     global oldrects
 
-    # for rect in oldrects:
-    #     if rect[0] + rect[2] <= SCREENWIDTH and rect[0] >=0 and rect[1] >= 0 and rect[1] + rect[3] <= SCREENHEIGHT:
-    #         dirtyrect = bg.subsurface(rect)
-    #         win.blit(dirtyrect, rect)
-    
     # update background over dirty rectangles
-    # for rect in oldrects:
-    #     if rect[0] <= SCREENWIDTH and rect[0] >=0 and rect[1] >= 0 and rect[1] <= SCREENHEIGHT:
-    #         if rect[0] + rect[2] < SCREENWIDTH:
-    #             rect[2] -= rect[0] + rect[2] - SCREENWIDTH
-    #         if rect[1] + rect[3] > SCREENHEIGHT:
-    #             rect[3] -= rect[1] + rect[3] - SCREENHEIGHT
-    #         dirtyrect = bg.subsurface(rect)
-    #         win.blit(dirtyrect, rect)
-
     for rect in oldrects:
         if rect[0] < 0:
             rect[2] == rect[0] 
@@ -393,17 +475,16 @@ def redrawGameWindow():
     oldrects = newrects[:]
     newrects.clear()
 
-
-
 # Objects
 events = Events()
 flames = []
 projectiles = []
-player1 = Vessel(1, 540, 100, rocket1Image)
-player2 = Vessel(2, 100, 100, rocket2Image)
+player1 = Vessel(1, 700, 100, rocket1Image)
+player2 = Vessel(2, 200, 100, rocket2Image)
 
 # Update background
 win.blit(bg, (0, 0))
+
 pygame.display.update()
 
 # Mainloop

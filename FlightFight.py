@@ -316,6 +316,8 @@ class Projectile(pygame.sprite.Sprite):
         # This is a bug fix line
         if x > SCREENWIDTH:
             x -= SCREENWIDTH
+        elif x < 0:
+            x += SCREENWIDTH
         
         if y < 0 or y > SCREENHEIGHT-1:
             return False

@@ -1,5 +1,5 @@
 # FlightFight
-Cave flight game written in python 3 using a PYGAME
+Cave flight game written in python 3 using pygame-module
 
 This is already a playable (but still under developement) two-player game. Initial goal is to create a cave flight game with gravity and a lot of particles and fun!
 

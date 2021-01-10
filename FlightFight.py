@@ -213,7 +213,7 @@ class Vessel(pygame.sprite.Sprite):
         if self.hit:
             hitforce = abs(xvel - self.xvel) + abs(yvel- self.yvel)
             if hitforce > 0.5:
-                print(hitforce)
+                # print(hitforce)
                 self.health -= int(hitforce)
                 bump_sound.play()
             self.xvel *= 0.5
@@ -264,7 +264,7 @@ class Projectile(pygame.sprite.Sprite):
         self.yvel = yvel
         self.age = 0
         self.lifeTime = 1200
-        self.color = (255, 0, 0)
+        self.color = (255, 255, 255)
 
     def move(self):
         # Add gravity
@@ -314,7 +314,7 @@ class Projectile(pygame.sprite.Sprite):
         y = int(self.y)
 
         # This is a bug fix line
-        if x > SCREENWIDTH:
+        if x > SCREENWIDTH-1:
             x -= SCREENWIDTH
         elif x < 0:
             x += SCREENWIDTH
